@@ -40,12 +40,18 @@ Simulate a credential brute-force attack against RDP (a common real-world attack
 - **xfreerdp** — used to validate manual RDP connectivity
 
 ### 3.3 Attack Steps
-1. Confirmed network connectivity between attacker and victim VMs using `nmap`.
+1. Confirmed network connectivity and RDP availability between attacker and victim VMs using `nmap`.
+
+   ![Nmap scan confirming RDP is reachable](./screenshots/08-nmap-scan-confirms-rdp.png)
+
 2. Enabled RDP on the victim machine to create a target service.
 3. Ran Hydra against the victim's RDP service using a custom wordlist of common weak passwords:
    ```
    hydra -l "victim-win11 rana" -P passwords.txt rdp://192.168.128.2
    ```
+
+   ![Hydra brute-force attack in progress](./screenshots/01-hydra-attack-running.png)
+
 4. Attack completed with 0 valid passwords found (expected — the real account password was not in the wordlist).
 
 ---
@@ -55,8 +61,12 @@ Simulate a credential brute-force attack against RDP (a common real-world attack
 ### 4.1 Log Source
 Windows Security Event Log, forwarded to Splunk via local monitoring input.
 
+![Splunk indexing Windows Security logs](./screenshots/02-splunk-security-logs-flowing.png)
+
 ### 4.2 Relevant Event
 **Event ID 4625** — "An account failed to log on." Multiple instances of this event were generated in a short time window, one for each password attempt made by Hydra.
+
+![Failed logon events (4625) in Splunk](./screenshots/03-failed-logon-events-4625.png)
 
 ### 4.3 Detection Query
 ```spl
@@ -66,6 +76,8 @@ index=main LogName=Security EventCode=4625
 ```
 
 This query groups failed logon attempts by target account and source IP address, and flags any combination with 3 or more failures — a pattern consistent with automated brute-force activity rather than normal human error (e.g., a single mistyped password).
+
+![Detection query results](./screenshots/04-detection-query-results.png)
 
 ### 4.4 Sample Findings
 
@@ -88,7 +100,11 @@ The detection query above was saved as a **scheduled Splunk alert**:
 - **Trigger Condition:** Number of results > 0
 - **Action:** Add to Triggered Alerts
 
+![Alert configuration](./screenshots/05-alert-created.png)
+
 The alert was validated by re-running the attack and confirming it fired correctly, with a matching timestamp in Splunk's Trigger History.
+
+![Alert trigger history showing successful detection](./screenshots/06-alert-triggered-history.png)
 
 ---
 
